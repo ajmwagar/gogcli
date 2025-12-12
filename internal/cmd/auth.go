@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/steipete/gogcli/internal/config"
@@ -99,6 +103,9 @@ func newAuthTokensCmd() *cobra.Command {
 		},
 	})
 
+	cmd.AddCommand(newAuthTokensExportCmd())
+	cmd.AddCommand(newAuthTokensImportCmd())
+
 	cmd.AddCommand(&cobra.Command{
 		Use:   "delete <email>",
 		Short: "Delete a stored refresh token",
@@ -125,6 +132,160 @@ func newAuthTokensCmd() *cobra.Command {
 		},
 	})
 
+	return cmd
+}
+
+func newAuthTokensExportCmd() *cobra.Command {
+	var force bool
+
+	cmd := &cobra.Command{
+		Use:   "export <email> <outPath>",
+		Short: "Export a refresh token to a file (contains secrets)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			u := ui.FromContext(cmd.Context())
+			email := strings.TrimSpace(args[0])
+			outPath := args[1]
+			if email == "" {
+				return errors.New("empty email")
+			}
+			if strings.TrimSpace(outPath) == "" {
+				return errors.New("empty outPath")
+			}
+
+			store, err := secrets.OpenDefault()
+			if err != nil {
+				return err
+			}
+			tok, err := store.GetToken(email)
+			if err != nil {
+				return err
+			}
+
+			if mkErr := os.MkdirAll(filepath.Dir(outPath), 0o755); mkErr != nil {
+				return mkErr
+			}
+
+			flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+			if !force {
+				flags = os.O_WRONLY | os.O_CREATE | os.O_EXCL
+			}
+			f, openErr := os.OpenFile(outPath, flags, 0o600)
+			if openErr != nil {
+				return openErr
+			}
+			defer f.Close()
+
+			type export struct {
+				Email        string   `json:"email"`
+				Services     []string `json:"services,omitempty"`
+				Scopes       []string `json:"scopes,omitempty"`
+				CreatedAt    string   `json:"created_at,omitempty"`
+				RefreshToken string   `json:"refresh_token"`
+			}
+			created := ""
+			if !tok.CreatedAt.IsZero() {
+				created = tok.CreatedAt.UTC().Format(time.RFC3339)
+			}
+
+			enc := json.NewEncoder(f)
+			enc.SetEscapeHTML(false)
+			enc.SetIndent("", "  ")
+			if encErr := enc.Encode(export{
+				Email:        tok.Email,
+				Services:     tok.Services,
+				Scopes:       tok.Scopes,
+				CreatedAt:    created,
+				RefreshToken: tok.RefreshToken,
+			}); encErr != nil {
+				return encErr
+			}
+
+			u.Err().Println("WARNING: exported file contains a refresh token (keep it safe and delete it when done)")
+			if outfmt.IsJSON(cmd.Context()) {
+				return outfmt.WriteJSON(os.Stdout, map[string]any{
+					"exported": true,
+					"email":    tok.Email,
+					"path":     outPath,
+				})
+			}
+			u.Out().Printf("exported\ttrue")
+			u.Out().Printf("email\t%s", tok.Email)
+			u.Out().Printf("path\t%s", outPath)
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&force, "force", false, "Overwrite output file if it exists")
+	return cmd
+}
+
+func newAuthTokensImportCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "import <inPath>",
+		Short: "Import a refresh token file into keyring (contains secrets)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			u := ui.FromContext(cmd.Context())
+			inPath := args[0]
+			b, err := os.ReadFile(inPath)
+			if err != nil {
+				return err
+			}
+
+			type export struct {
+				Email        string   `json:"email"`
+				Services     []string `json:"services,omitempty"`
+				Scopes       []string `json:"scopes,omitempty"`
+				CreatedAt    string   `json:"created_at,omitempty"`
+				RefreshToken string   `json:"refresh_token"`
+			}
+			var ex export
+			if unmarshalErr := json.Unmarshal(b, &ex); unmarshalErr != nil {
+				return unmarshalErr
+			}
+			ex.Email = strings.TrimSpace(ex.Email)
+			if ex.Email == "" {
+				return errors.New("missing email in token file")
+			}
+			if strings.TrimSpace(ex.RefreshToken) == "" {
+				return errors.New("missing refresh_token in token file")
+			}
+			var createdAt time.Time
+			if strings.TrimSpace(ex.CreatedAt) != "" {
+				parsed, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(ex.CreatedAt))
+				if parseErr != nil {
+					return parseErr
+				}
+				createdAt = parsed
+			}
+
+			store, err := secrets.OpenDefault()
+			if err != nil {
+				return err
+			}
+			if err := store.SetToken(ex.Email, secrets.Token{
+				Email:        ex.Email,
+				Services:     ex.Services,
+				Scopes:       ex.Scopes,
+				CreatedAt:    createdAt,
+				RefreshToken: ex.RefreshToken,
+			}); err != nil {
+				return err
+			}
+
+			u.Err().Println("Imported refresh token into keyring")
+			if outfmt.IsJSON(cmd.Context()) {
+				return outfmt.WriteJSON(os.Stdout, map[string]any{
+					"imported": true,
+					"email":    ex.Email,
+				})
+			}
+			u.Out().Printf("imported\ttrue")
+			u.Out().Printf("email\t%s", ex.Email)
+			return nil
+		},
+	}
 	return cmd
 }
 
