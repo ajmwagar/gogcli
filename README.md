@@ -16,7 +16,7 @@ Install via Homebrew (tap):
 
 Build locally:
 
-- `go build -o ./bin/gog ./cmd/gog`
+- `make`
 
 Run:
 
