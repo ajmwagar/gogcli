@@ -23,7 +23,7 @@ func Execute(args []string) error {
 
 	root := &cobra.Command{
 		Use:           "gog",
-		Short:         "Google CLI for Gmail/Calendar/Drive/Contacts",
+		Short:         "Google CLI for Gmail/Calendar/Drive/Contacts/People",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		CompletionOptions: cobra.CompletionOptions{
@@ -40,16 +40,22 @@ func Execute(args []string) error {
   # Gmail
   gog gmail search 'newer_than:7d' --max 10
   gog gmail thread <threadId>
+  gog gmail get <messageId> --format metadata
+  gog gmail attachment <messageId> <attachmentId> --out ./attachment.bin
   gog gmail labels get INBOX --output=json
 
   # Calendar
   gog calendar calendars
   gog calendar events <calendarId> --from 2025-01-01T00:00:00Z --to 2025-01-08T00:00:00Z --max 50
+  gog calendar respond <calendarId> <eventId> --status accepted
 
   # Contacts
   gog contacts list --max 50
   gog contacts search "Ada" --max 50
   gog contacts other list --max 50
+
+  # People
+  gog people me
 
   # Parseable output
   gog --output=json drive ls --max 5 | jq .
@@ -81,7 +87,7 @@ func Execute(args []string) error {
 
 	root.SetArgs(args)
 	root.PersistentFlags().StringVar(&flags.Color, "color", flags.Color, "Color output: auto|always|never")
-	root.PersistentFlags().StringVar(&flags.Account, "account", "", "Account email for API commands (gmail/calendar/drive/contacts)")
+	root.PersistentFlags().StringVar(&flags.Account, "account", "", "Account email for API commands (gmail/calendar/drive/contacts/people)")
 	root.PersistentFlags().StringVar(&flags.Output, "output", flags.Output, "Output format: text|json")
 
 	root.AddCommand(newAuthCmd())
@@ -89,6 +95,7 @@ func Execute(args []string) error {
 	root.AddCommand(newCalendarCmd(&flags))
 	root.AddCommand(newGmailCmd(&flags))
 	root.AddCommand(newContactsCmd(&flags))
+	root.AddCommand(newPeopleCmd(&flags))
 
 	err := root.Execute()
 	if err == nil {
