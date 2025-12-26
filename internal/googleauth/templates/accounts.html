@@ -663,4 +663,125 @@
             const code = char.charCodeAt(0) - 97; // a=0, z=25
             const hue1 = (code * 14) % 360; // Spread across hue wheel
             const hue2 = (hue1 + 40) % 360;
-            return 
+            return `linear-gradient(135deg, hsl(${hue1}, 70%, 55%), hsl(${hue2}, 80%, 45%))`;
+        }
+
+        // Load accounts on page load
+        async function loadAccounts() {
+            try {
+                const response = await fetch('/accounts');
+                const data = await response.json();
+                accounts = data.accounts || [];
+                renderAccounts();
+            } catch (err) {
+                console.error('Failed to load accounts:', err);
+                accounts = [];
+                renderAccounts();
+            }
+        }
+
+        function renderAccounts() {
+            const accountsSection = document.getElementById('accountsSection');
+            const emptyState = document.getElementById('emptyState');
+            const accountsList = document.getElementById('accountsList');
+            const accountBadge = document.getElementById('accountBadge');
+
+            if (accounts.length === 0) {
+                accountsSection.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+            } else {
+                accountsSection.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                accountBadge.textContent = accounts.length + ' account' + (accounts.length !== 1 ? 's' : '');
+
+                accountsList.innerHTML = accounts.map((acc, index) => {
+                    const initial = acc.email.charAt(0).toUpperCase();
+                    const isDefault = acc.isDefault;
+                    const services = acc.services || ['calendar', 'gmail', 'drive'];
+
+                    return `
+                        <div class="account-card ${isDefault ? 'default' : ''}" data-email="${acc.email}">
+                            <div class="account-avatar" style="background: ${getAvatarGradient(acc.email)}">
+                                ${initial}
+                            </div>
+                            <div class="account-details">
+                                <div class="account-email">${acc.email}</div>
+                                <div class="account-services">
+                                    ${services.map(s => `<span class="service-tag ${s.toLowerCase()}">${s}</span>`).join('')}
+                                </div>
+                            </div>
+                            <div class="account-actions">
+                                ${isDefault ? `
+                                    <span class="default-badge">
+                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                        </svg>
+                                        Default
+                                    </span>
+                                ` : `
+                                    <button class="set-default-btn" onclick="setDefault('${acc.email}')">Set default</button>
+                                `}
+                                <button class="remove-btn" onclick="removeAccount('${acc.email}')" title="Remove account">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function addAccount() {
+            // Redirect to OAuth flow
+            window.location.href = '/auth/start';
+        }
+
+        async function setDefault(email) {
+            try {
+                const response = await fetch('/set-default', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ email })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await loadAccounts();
+                }
+            } catch (err) {
+                console.error('Failed to set default:', err);
+            }
+        }
+
+        async function removeAccount(email) {
+            if (!confirm('Remove ' + email + ' from gog?')) {
+                return;
+            }
+            try {
+                const response = await fetch('/remove-account', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ email })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await loadAccounts();
+                }
+            } catch (err) {
+                console.error('Failed to remove account:', err);
+            }
+        }
+
+        // Initialize
+        loadAccounts();
+    </script>
+</body>
+</html>`
