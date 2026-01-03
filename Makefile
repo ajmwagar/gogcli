@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # `make` should build the binary by default.
 .DEFAULT_GOAL := build
 
-.PHONY: build gog gogcli gog-help fmt fmt-check lint test ci tools
+.PHONY: build gog gogcli gog-help help fmt fmt-check lint test ci tools
 
 BIN_DIR := $(CURDIR)/bin
 BIN := $(BIN_DIR)/gog
@@ -24,12 +24,18 @@ build:
 	@go build -ldflags "$(LDFLAGS)" -o $(BIN) $(CMD)
 
 gog: build
-	@$(BIN) $(ARGS)
+	@if [ -z "$(ARGS)" ]; then \
+		$(BIN) --help; \
+	else \
+		$(BIN) $(ARGS); \
+	fi
 
 gogcli: gog
 
 gog-help: build
 	@$(BIN) --help
+
+help: gog-help
 
 tools:
 	@mkdir -p $(TOOLS_DIR)
