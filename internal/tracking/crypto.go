@@ -10,6 +10,8 @@ import (
 	"fmt"
 )
 
+var errCiphertextTooShort = errors.New("ciphertext too short")
+
 // PixelPayload is encrypted into the tracking pixel URL
 // to be decrypted by the worker.
 type PixelPayload struct {
@@ -17,8 +19,6 @@ type PixelPayload struct {
 	SubjectHash string `json:"s"`
 	SentAt      int64  `json:"t"`
 }
-
-var errCiphertextTooShort = errors.New("ciphertext too short")
 
 // Encrypt encrypts a PixelPayload into a URL-safe base64 blob using AES-GCM
 func Encrypt(payload *PixelPayload, keyBase64 string) (string, error) {

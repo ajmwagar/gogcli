@@ -40,6 +40,7 @@
 - Auth: `gog auth manage` stores tokens under the real account email (Google userinfo) (#36) — thanks @salmonumbrella.
 - Docs: `docs info`/`docs cat` now use the Docs API (Drive still used for exports/copy/create).
 - Calendar: feature-parity flags + new event types (focus-time/ooo/working-location) and recurring scope updates (#38) — thanks @salmonumbrella.
+- Tests: expand coverage and add tracking/gmail/calendar regressions (#35) — thanks @salmonumbrella.
 
 ## 0.4.2 - 2025-12-31
 

@@ -79,3 +79,74 @@ func TestFirstMessage(t *testing.T) {
 		t.Fatalf("unexpected: %#v", got)
 	}
 }
+
+func TestLastMessage(t *testing.T) {
+	if lastMessage(nil) != nil {
+		t.Fatalf("expected nil")
+	}
+	if lastMessage(&gmail.Thread{}) != nil {
+		t.Fatalf("expected nil")
+	}
+	m1 := &gmail.Message{Id: "m1"}
+	m2 := &gmail.Message{Id: "m2"}
+	if got := lastMessage(&gmail.Thread{Messages: []*gmail.Message{m1, m2}}); got == nil || got.Id != "m2" {
+		t.Fatalf("unexpected: %#v", got)
+	}
+}
+
+func TestMessageDateMillis(t *testing.T) {
+	msg := &gmail.Message{InternalDate: 1234}
+	if got := messageDateMillis(msg); got != 1234 {
+		t.Fatalf("unexpected internal date: %d", got)
+	}
+
+	msg = &gmail.Message{Payload: &gmail.MessagePart{
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Date", Value: "Mon, 02 Jan 2006 15:04:05 -0700"},
+		},
+	}}
+	if got := messageDateMillis(msg); got == 0 {
+		t.Fatalf("expected parsed date")
+	}
+
+	msg = &gmail.Message{Payload: &gmail.MessagePart{
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Date", Value: "not a date"},
+		},
+	}}
+	if got := messageDateMillis(msg); got != 0 {
+		t.Fatalf("expected zero for invalid date, got %d", got)
+	}
+
+	if got := messageDateMillis(&gmail.Message{}); got != 0 {
+		t.Fatalf("expected zero for missing payload, got %d", got)
+	}
+}
+
+func TestMessageByDate(t *testing.T) {
+	m1 := &gmail.Message{Id: "m1", InternalDate: 100}
+	m2 := &gmail.Message{Id: "m2", InternalDate: 200}
+	m3 := &gmail.Message{Id: "m3", InternalDate: 150}
+	thread := &gmail.Thread{Messages: []*gmail.Message{m1, m2, m3}}
+
+	if got := messageByDate(thread, false); got == nil || got.Id != "m2" {
+		t.Fatalf("unexpected newest: %#v", got)
+	}
+	if got := messageByDate(thread, true); got == nil || got.Id != "m1" {
+		t.Fatalf("unexpected oldest: %#v", got)
+	}
+	if got := newestMessageByDate(thread); got == nil || got.Id != "m2" {
+		t.Fatalf("unexpected newest wrapper: %#v", got)
+	}
+	if got := oldestMessageByDate(thread); got == nil || got.Id != "m1" {
+		t.Fatalf("unexpected oldest wrapper: %#v", got)
+	}
+
+	noDates := &gmail.Thread{Messages: []*gmail.Message{{Id: "a"}, {Id: "b"}}}
+	if got := messageByDate(noDates, false); got == nil || got.Id != "b" {
+		t.Fatalf("unexpected fallback newest: %#v", got)
+	}
+	if got := messageByDate(noDates, true); got == nil || got.Id != "a" {
+		t.Fatalf("unexpected fallback oldest: %#v", got)
+	}
+}

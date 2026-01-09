@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -83,5 +84,21 @@ func TestExecute_UnknownFlag(t *testing.T) {
 	})
 	if errText == "" {
 		t.Fatalf("expected stderr output")
+	}
+}
+
+func TestNewUsageError(t *testing.T) {
+	if newUsageError(nil) != nil {
+		t.Fatalf("expected nil for nil error")
+	}
+
+	err := errors.New("bad")
+	wrapped := newUsageError(err)
+	if wrapped == nil {
+		t.Fatalf("expected wrapped error")
+	}
+	var exitErr *ExitError
+	if !errors.As(wrapped, &exitErr) || exitErr.Code != 2 || !errors.Is(exitErr.Err, err) {
+		t.Fatalf("unexpected wrapped error: %#v", wrapped)
 	}
 }

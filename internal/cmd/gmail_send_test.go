@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -12,6 +13,9 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+
+	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestReplyHeaders(t *testing.T) {
@@ -197,6 +201,158 @@ func TestSelectLatestThreadMessage(t *testing.T) {
 
 	if got := selectLatestThreadMessage([]*gmail.Message{nil, m1}); got == nil || got.Id != "m1" {
 		t.Fatalf("expected m1 fallback, got %#v", got)
+	}
+}
+
+func TestGmailSendCmd_RunJSON(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method == http.MethodPost && path == "/users/me/messages/send" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:      "a@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "\"messageId\"") || !strings.Contains(out, "\"threadId\"") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestGmailSendCmd_RunJSON_WithFrom(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs/alias@example.com":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAsEmail":        "alias@example.com",
+				"displayName":        "Alias",
+				"verificationStatus": "accepted",
+			})
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m2",
+				"threadId": "t2",
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:      "a@example.com",
+		From:    "alias@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, "Alias <alias@example.com>") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestGmailSendCmd_Run_FromUnverified(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method == http.MethodGet && path == "/users/me/settings/sendAs/alias@example.com" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAsEmail":        "alias@example.com",
+				"verificationStatus": "pending",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	cmd := &GmailSendCmd{
+		To:      "a@example.com",
+		From:    "alias@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}
+
+	if err := cmd.Run(context.Background(), &RootFlags{Account: "a@b.com"}); err == nil {
+		t.Fatalf("expected error for unverified send-as")
 	}
 }
 

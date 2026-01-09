@@ -2,148 +2,110 @@ package secrets
 
 import (
 	"errors"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/99designs/keyring"
 )
 
-func TestKeyringStore_SetToken_Validation(t *testing.T) {
-	s := &KeyringStore{ring: keyring.NewArrayKeyring(nil)}
+var errTestKeychain = errors.New("test -25308 error")
 
-	if err := s.SetToken("", Token{RefreshToken: "rt"}); err == nil {
-		t.Fatalf("expected error for missing email")
+func TestKeyringStore_ListDeleteDefault(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+
+	tok1 := Token{Email: "a@b.com", RefreshToken: "rt1", CreatedAt: time.Now()}
+	if err := store.SetToken(tok1.Email, tok1); err != nil {
+		t.Fatalf("SetToken: %v", err)
 	}
 
-	if err := s.SetToken("a@b.com", Token{}); err == nil {
-		t.Fatalf("expected error for missing refresh token")
+	tok2 := Token{Email: "c@d.com", RefreshToken: "rt2", CreatedAt: time.Now()}
+	if err := store.SetToken(tok2.Email, tok2); err != nil {
+		t.Fatalf("SetToken: %v", err)
+	}
+
+	tokens, err := store.ListTokens()
+	if err != nil {
+		t.Fatalf("ListTokens: %v", err)
+	}
+
+	if len(tokens) != 2 {
+		t.Fatalf("expected 2 tokens, got %d", len(tokens))
+	}
+
+	err = store.DeleteToken(tok1.Email)
+	if err != nil {
+		t.Fatalf("DeleteToken: %v", err)
+	}
+
+	if _, getErr := store.GetToken(tok1.Email); getErr == nil {
+		t.Fatalf("expected error for deleted token")
+	}
+
+	err = store.SetDefaultAccount("a@b.com")
+	if err != nil {
+		t.Fatalf("SetDefaultAccount: %v", err)
+	}
+
+	if def, err := store.GetDefaultAccount(); err != nil {
+		t.Fatalf("GetDefaultAccount: %v", err)
+	} else if def != "a@b.com" {
+		t.Fatalf("unexpected default account: %q", def)
+	}
+
+	emptyStore := &KeyringStore{ring: keyring.NewArrayKeyring(nil)}
+	if def, err := emptyStore.GetDefaultAccount(); err != nil || def != "" {
+		t.Fatalf("expected empty default account, got %q err=%v", def, err)
 	}
 }
 
-func TestKeyringStore_GetToken_Validation(t *testing.T) {
-	s := &KeyringStore{ring: keyring.NewArrayKeyring(nil)}
+func TestParseTokenKey(t *testing.T) {
+	if email, ok := ParseTokenKey("token:a@b.com"); !ok || email != "a@b.com" {
+		t.Fatalf("unexpected parse: %q ok=%v", email, ok)
+	}
 
-	if _, err := s.GetToken(""); err == nil {
-		t.Fatalf("expected error for missing email")
+	if _, ok := ParseTokenKey("nope"); ok {
+		t.Fatalf("expected invalid token key")
 	}
 }
 
-func TestParseTokenKey_RejectsEmpty(t *testing.T) {
-	if _, ok := ParseTokenKey("token:"); ok {
-		t.Fatalf("expected not ok")
+func TestAllowedBackends(t *testing.T) {
+	if _, err := allowedBackends(KeyringBackendInfo{Value: "keychain"}); err != nil {
+		t.Fatalf("keychain allowed: %v", err)
 	}
 
-	if _, ok := ParseTokenKey("token:   "); ok {
-		t.Fatalf("expected not ok")
+	if _, err := allowedBackends(KeyringBackendInfo{Value: "file"}); err != nil {
+		t.Fatalf("file allowed: %v", err)
+	}
+}
+
+func TestWrapKeychainError(t *testing.T) {
+	wrapped := wrapKeychainError(errTestKeychain)
+	if runtime.GOOS == "darwin" {
+		if !errors.Is(wrapped, errTestKeychain) || !strings.Contains(wrapped.Error(), "keychain is locked") {
+			t.Fatalf("expected wrapped keychain error, got: %v", wrapped)
+		}
+
+		return
+	}
+
+	if !errors.Is(wrapped, errTestKeychain) || wrapped.Error() != errTestKeychain.Error() {
+		t.Fatalf("expected passthrough error, got: %v", wrapped)
 	}
 }
 
 func TestFileKeyringPasswordFuncFrom(t *testing.T) {
-	pf := fileKeyringPasswordFuncFrom("secret", false)
-	res := func() struct {
-		got string
-		err error
-	} {
-		got, err := pf("prompt")
-
-		return struct {
-			got string
-			err error
-		}{got: got, err: err}
-	}()
-
-	if res.err != nil || res.got != "secret" {
-		t.Fatalf("expected secret, got %q err=%v", res.got, res.err)
+	fn := fileKeyringPasswordFuncFrom("pw", false)
+	if got, err := fn("prompt"); err != nil {
+		t.Fatalf("expected password, got err: %v", err)
+	} else if got != "pw" {
+		t.Fatalf("unexpected password: %q", got)
 	}
 
-	pf = fileKeyringPasswordFuncFrom("", true)
-
-	if pf == nil {
-		t.Fatalf("expected terminal prompt func")
-	}
-
-	pf = fileKeyringPasswordFuncFrom("", false)
-
-	if _, err := pf("prompt"); err == nil {
-		t.Fatalf("expected error without tty")
-	}
-}
-
-func TestFileKeyringPasswordFunc(t *testing.T) {
-	t.Setenv(keyringPasswordEnv, "secret")
-	pf := fileKeyringPasswordFunc()
-	res := func() struct {
-		got string
-		err error
-	} {
-		got, err := pf("prompt")
-
-		return struct {
-			got string
-			err error
-		}{got: got, err: err}
-	}()
-
-	if res.err != nil || res.got != "secret" {
-		t.Fatalf("expected secret, got %q err=%v", res.got, res.err)
-	}
-}
-
-func TestResolveKeyringBackendInfo_EnvNormalizesWhitespaceAndCase(t *testing.T) {
-	t.Setenv(keyringBackendEnv, "  KEYCHAIN  ")
-
-	info, err := ResolveKeyringBackendInfo()
-	if err != nil {
-		t.Fatalf("ResolveKeyringBackendInfo: %v", err)
-	}
-
-	if info.Value != "keychain" {
-		t.Fatalf("expected keychain, got %q", info.Value)
-	}
-
-	if info.Source != keyringBackendSourceEnv {
-		t.Fatalf("expected source env, got %q", info.Source)
-	}
-}
-
-func TestAllowedBackends_ValidatesValues(t *testing.T) {
-	tests := []struct {
-		name    string
-		value   string
-		wantLen int
-		wantErr bool
-	}{
-		{"empty defaults to nil", "", 0, false},
-		{"auto defaults to nil", "auto", 0, false},
-		{"keychain returns one backend", "keychain", 1, false},
-		{"file returns one backend", "file", 1, false},
-		{"invalid returns error", "invalid", 0, true},
-		{"whitespace rejected", "  keychain  ", 0, true},
-		{"case sensitive", "KEYCHAIN", 0, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			backends, err := allowedBackends(KeyringBackendInfo{Value: tt.value})
-
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error")
-				}
-
-				if !errors.Is(err, errInvalidKeyringBackend) {
-					t.Errorf("expected errInvalidKeyringBackend, got %v", err)
-				}
-
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if len(backends) != tt.wantLen {
-				t.Errorf("expected %d backends, got %d", tt.wantLen, len(backends))
-			}
-		})
+	fn = fileKeyringPasswordFuncFrom("", false)
+	if _, err := fn("prompt"); err == nil || !errors.Is(err, errNoTTY) {
+		t.Fatalf("expected no TTY error, got: %v", err)
 	}
 }

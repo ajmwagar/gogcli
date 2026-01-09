@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -100,5 +101,24 @@ func TestGmailThreadModifyCmd_JSON(t *testing.T) {
 	}
 	if len(parsed.RemovedLabels) != 1 || parsed.RemovedLabels[0] != "Label_1" {
 		t.Fatalf("unexpected removed labels: %#v", parsed.RemovedLabels)
+	}
+
+	plainOut := captureStdout(t, func() {
+		u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
+		if uiErr != nil {
+			t.Fatalf("ui.New: %v", uiErr)
+		}
+		ctx := ui.WithUI(context.Background(), u)
+
+		if err := runKong(t, &GmailThreadModifyCmd{}, []string{
+			"t1",
+			"--add", "INBOX",
+			"--remove", "Custom",
+		}, ctx, flags); err != nil {
+			t.Fatalf("execute plain: %v", err)
+		}
+	})
+	if !strings.Contains(plainOut, "Modified thread") {
+		t.Fatalf("unexpected plain output: %q", plainOut)
 	}
 }

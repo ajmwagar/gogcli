@@ -14,6 +14,8 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 )
 
+var errKeyringOpenBlocked = errors.New("keyring open blocked")
+
 // keyringConfig creates a keyring.Config for testing.
 func keyringConfig(keyringDir string) keyring.Config {
 	return keyring.Config{
@@ -222,12 +224,15 @@ func TestOpenKeyringWithTimeout_Timeout(t *testing.T) {
 	originalOpen := keyringOpenFunc
 	keyringOpenFunc = func(_ keyring.Config) (keyring.Keyring, error) {
 		<-blockCh
-		return nil, errors.New("blocked")
+		return nil, errKeyringOpenBlocked
 	}
+
 	t.Cleanup(func() { keyringOpenFunc = originalOpen })
 
 	_, err = openKeyringWithTimeout(cfg, 10*time.Millisecond)
+
 	close(blockCh)
+
 	if err == nil {
 		t.Fatalf("expected timeout error")
 	}
