@@ -16,7 +16,7 @@ func wrapClassroomError(err error) error {
 	errStr := err.Error()
 	if strings.Contains(errStr, "accessNotConfigured") ||
 		strings.Contains(errStr, "Classroom API has not been used") {
-		return fmt.Errorf("Classroom API is not enabled; enable it at: https://console.developers.google.com/apis/api/classroom.googleapis.com/overview (%w)", err)
+		return fmt.Errorf("classroom API is not enabled; enable it at: https://console.developers.google.com/apis/api/classroom.googleapis.com/overview (%w)", err)
 	}
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") {
@@ -60,7 +60,7 @@ func formatClassroomDue(d *classroom.Date, t *classroom.TimeOfDay) string {
 func parseClassroomDate(value string) (*classroom.Date, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return nil, nil
+		return nil, fmt.Errorf("empty date")
 	}
 	parsed, err := time.Parse("2006-01-02", value)
 	if err != nil {
@@ -72,7 +72,7 @@ func parseClassroomDate(value string) (*classroom.Date, error) {
 func parseClassroomTime(value string) (*classroom.TimeOfDay, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return nil, nil
+		return nil, fmt.Errorf("empty time")
 	}
 	parsed, err := time.Parse("15:04", value)
 	if err != nil {

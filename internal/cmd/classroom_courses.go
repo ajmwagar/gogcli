@@ -309,7 +309,8 @@ func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) e
 		return usage("empty courseId")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete course %s", courseID)); err != nil {
+	err = confirmDestructive(ctx, flags, fmt.Sprintf("delete course %s", courseID))
+	if err != nil {
 		return err
 	}
 

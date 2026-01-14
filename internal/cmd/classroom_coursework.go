@@ -207,21 +207,18 @@ func (c *ClassroomCourseworkCreateCmd) Run(ctx context.Context, flags *RootFlags
 	var dueDate *classroom.Date
 	var dueTime *classroom.TimeOfDay
 	if strings.TrimSpace(c.Due) != "" {
-		var err error
 		dueDate, dueTime, err = parseClassroomDue(c.Due)
 		if err != nil {
 			return usage(err.Error())
 		}
 	} else {
 		if strings.TrimSpace(c.DueDate) != "" {
-			var err error
 			dueDate, err = parseClassroomDate(c.DueDate)
 			if err != nil {
 				return usage(err.Error())
 			}
 		}
 		if strings.TrimSpace(c.DueTime) != "" {
-			var err error
 			dueTime, err = parseClassroomTime(c.DueTime)
 			if err != nil {
 				return usage(err.Error())
@@ -312,21 +309,18 @@ func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags
 	var dueDate *classroom.Date
 	var dueTime *classroom.TimeOfDay
 	if strings.TrimSpace(c.Due) != "" {
-		var err error
 		dueDate, dueTime, err = parseClassroomDue(c.Due)
 		if err != nil {
 			return usage(err.Error())
 		}
 	} else {
 		if strings.TrimSpace(c.DueDate) != "" {
-			var err error
 			dueDate, err = parseClassroomDate(c.DueDate)
 			if err != nil {
 				return usage(err.Error())
 			}
 		}
 		if strings.TrimSpace(c.DueTime) != "" {
-			var err error
 			dueTime, err = parseClassroomTime(c.DueTime)
 			if err != nil {
 				return usage(err.Error())
@@ -388,7 +382,8 @@ func (c *ClassroomCourseworkDeleteCmd) Run(ctx context.Context, flags *RootFlags
 		return usage("empty courseworkId")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete coursework %s from %s", courseworkID, courseID)); err != nil {
+	err = confirmDestructive(ctx, flags, fmt.Sprintf("delete coursework %s from %s", courseworkID, courseID))
+	if err != nil {
 		return err
 	}
 

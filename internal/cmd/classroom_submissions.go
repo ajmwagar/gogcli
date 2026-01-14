@@ -283,17 +283,17 @@ func (c *ClassroomSubmissionsGradeCmd) Run(ctx context.Context, flags *RootFlags
 	fields := make([]string, 0, 2)
 	sub := &classroom.StudentSubmission{}
 	if strings.TrimSpace(c.Draft) != "" {
-		grade, err := parseFloat(c.Draft)
-		if err != nil {
-			return usage(err.Error())
+		grade, parseErr := parseFloat(c.Draft)
+		if parseErr != nil {
+			return usage(parseErr.Error())
 		}
 		sub.DraftGrade = grade
 		fields = append(fields, "draft_grade")
 	}
 	if strings.TrimSpace(c.Assigned) != "" {
-		grade, err := parseFloat(c.Assigned)
-		if err != nil {
-			return usage(err.Error())
+		grade, parseErr := parseFloat(c.Assigned)
+		if parseErr != nil {
+			return usage(parseErr.Error())
 		}
 		sub.AssignedGrade = grade
 		fields = append(fields, "assigned_grade")

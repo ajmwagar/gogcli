@@ -183,7 +183,8 @@ func (c *ClassroomStudentsRemoveCmd) Run(ctx context.Context, flags *RootFlags) 
 		return usage("empty userId")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove student %s from %s", userID, courseID)); err != nil {
+	err = confirmDestructive(ctx, flags, fmt.Sprintf("remove student %s from %s", userID, courseID))
+	if err != nil {
 		return err
 	}
 
@@ -372,7 +373,8 @@ func (c *ClassroomTeachersRemoveCmd) Run(ctx context.Context, flags *RootFlags) 
 		return usage("empty userId")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove teacher %s from %s", userID, courseID)); err != nil {
+	err = confirmDestructive(ctx, flags, fmt.Sprintf("remove teacher %s from %s", userID, courseID))
+	if err != nil {
 		return err
 	}
 
