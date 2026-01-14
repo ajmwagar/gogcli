@@ -38,6 +38,7 @@ const postSuccessDisplaySeconds = 30
 type successTemplateData struct {
 	Email            string
 	Services         []string
+	AllServices      []string
 	CountdownSeconds int
 }
 

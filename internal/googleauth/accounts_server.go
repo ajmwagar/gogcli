@@ -108,6 +108,7 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 	mux.HandleFunc("/", ms.handleAccountsPage)
 	mux.HandleFunc("/accounts", ms.handleListAccounts)
 	mux.HandleFunc("/auth/start", ms.handleAuthStart)
+	mux.HandleFunc("/auth/upgrade", ms.handleAuthUpgrade)
 	mux.HandleFunc("/oauth2/callback", ms.handleOAuthCallback)
 	mux.HandleFunc("/set-default", ms.handleSetDefault)
 	mux.HandleFunc("/remove-account", ms.handleRemoveAccount)
@@ -242,6 +243,56 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 	}
 
 	authURL := cfg.AuthCodeURL(state, authURLParams(ms.opts.ForceConsent)...)
+	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+func (ms *ManageServer) handleAuthUpgrade(w http.ResponseWriter, r *http.Request) {
+	// Similar to handleAuthStart, but always forces consent to get new scopes
+	email := r.URL.Query().Get("email")
+	if email == "" {
+		http.Error(w, "Missing email parameter", http.StatusBadRequest)
+		return
+	}
+
+	creds, err := readClientCredentials()
+	if err != nil {
+		http.Error(w, "OAuth credentials not configured. Run: gog auth credentials <file>", http.StatusInternalServerError)
+		return
+	}
+
+	state, err := randomStateFn()
+	if err != nil {
+		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
+		return
+	}
+	ms.oauthState = state
+
+	// Always use all services for upgrade
+	services := AllServices()
+
+	scopes, err := ScopesForManage(services)
+	if err != nil {
+		http.Error(w, "Failed to get scopes", http.StatusInternalServerError)
+		return
+	}
+
+	port := ms.listener.Addr().(*net.TCPAddr).Port
+	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/oauth2/callback", port)
+
+	cfg := oauth2.Config{
+		ClientID:     creds.ClientID,
+		ClientSecret: creds.ClientSecret,
+		Endpoint:     oauthEndpoint,
+		RedirectURL:  redirectURI,
+		Scopes:       scopes,
+	}
+
+	// Always force consent for upgrades to ensure user sees all scopes
+	// Add login_hint to pre-select the account
+	authURL := cfg.AuthCodeURL(state,
+		append(authURLParams(true),
+			oauth2.SetAuthURLParam("login_hint", email))...)
+
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
@@ -566,9 +617,17 @@ func renderSuccessPageWithDetails(w http.ResponseWriter, email string, services 
 		_, _ = w.Write([]byte("Success! You can close this window."))
 		return
 	}
+
+	// Get all available services for showing connected vs missing
+	allServices := make([]string, 0, len(serviceOrder))
+	for _, svc := range serviceOrder {
+		allServices = append(allServices, string(svc))
+	}
+
 	data := successTemplateData{
 		Email:            email,
 		Services:         services,
+		AllServices:      allServices,
 		CountdownSeconds: postSuccessDisplaySeconds,
 	}
 	_ = tmpl.Execute(w, data)
