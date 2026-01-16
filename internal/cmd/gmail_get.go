@@ -143,10 +143,8 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			attachments := collectAttachments(msg.Payload)
 			if len(attachments) > 0 {
 				u.Out().Println("")
-				u.Out().Println("attachments:")
 				for _, a := range attachments {
-					u.Out().Printf("  %s (%d bytes, %s)", a.Filename, a.Size, a.MimeType)
-					u.Out().Printf("    attachment_id\t%s", a.AttachmentID)
+					u.Out().Printf("attachment\t%s\t%d\t%s\t%s", a.Filename, a.Size, a.MimeType, a.AttachmentID)
 				}
 			}
 			body := bestBodyText(msg.Payload)

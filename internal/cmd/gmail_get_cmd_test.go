@@ -247,20 +247,8 @@ func TestGmailGetCmd_Text_Full_WithAttachments(t *testing.T) {
 		})
 	})
 
-	if !strings.Contains(out, "attachments:") {
-		t.Fatalf("expected 'attachments:' in output, got: %q", out)
-	}
-	if !strings.Contains(out, "report.pdf") {
-		t.Fatalf("expected 'report.pdf' in output, got: %q", out)
-	}
-	if !strings.Contains(out, "54321 bytes") {
-		t.Fatalf("expected '54321 bytes' in output, got: %q", out)
-	}
-	if !strings.Contains(out, "application/pdf") {
-		t.Fatalf("expected 'application/pdf' in output, got: %q", out)
-	}
-	if !strings.Contains(out, "ANGjdJ-xyz789") {
-		t.Fatalf("expected attachment id in output, got: %q", out)
+	if !strings.Contains(out, "attachment\treport.pdf\t54321\tapplication/pdf\tANGjdJ-xyz789") {
+		t.Fatalf("expected attachment line in output, got: %q", out)
 	}
 }
 
