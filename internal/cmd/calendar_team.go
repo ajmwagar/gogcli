@@ -65,7 +65,7 @@ func (c *CalendarTeamCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// Get group members via Cloud Identity API
 	cloudSvc, err := newCloudIdentityService(ctx, account)
 	if err != nil {
-		return wrapCloudIdentityError(err)
+		return wrapCloudIdentityError(err, account)
 	}
 
 	memberEmails, err := collectGroupMemberEmails(ctx, cloudSvc, groupEmail)

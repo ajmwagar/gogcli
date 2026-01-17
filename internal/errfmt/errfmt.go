@@ -53,6 +53,11 @@ func Format(err error) string {
 		return err.Error()
 	}
 
+	var userErr *UserFacingError
+	if errors.As(err, &userErr) {
+		return userErr.Message
+	}
+
 	var gerr *ggoogleapi.Error
 	if errors.As(err, &gerr) {
 		reason := ""
@@ -68,6 +73,32 @@ func Format(err error) string {
 	}
 
 	return err.Error()
+}
+
+// UserFacingError forces a specific message, while preserving the underlying cause.
+type UserFacingError struct {
+	Message string
+	Cause   error
+}
+
+func (e *UserFacingError) Error() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.Message
+}
+
+func (e *UserFacingError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.Cause
+}
+
+func NewUserFacingError(message string, cause error) error {
+	return &UserFacingError{Message: message, Cause: cause}
 }
 
 // formatParseError enhances Kong parse errors with helpful hints.

@@ -74,17 +74,17 @@ func TestGroupsList_NoGroups_Text(t *testing.T) {
 
 func TestWrapCloudIdentityError_Messages(t *testing.T) {
 	accessErr := errors.New("accessNotConfigured")
-	if err := wrapCloudIdentityError(accessErr); err == nil || !strings.Contains(strings.ToLower(err.Error()), "cloud identity api is not enabled") {
+	if err := wrapCloudIdentityError(accessErr, "user@company.com"); err == nil || !strings.Contains(err.Error(), "Cloud Identity API is not enabled") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	permErr := errors.New("insufficientPermissions")
-	if err := wrapCloudIdentityError(permErr); err == nil || !strings.Contains(err.Error(), "insufficient permissions") {
+	if err := wrapCloudIdentityError(permErr, "user@company.com"); err == nil || !strings.Contains(err.Error(), "Insufficient permissions") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	other := errors.New("other")
-	if err := wrapCloudIdentityError(other); err == nil || err.Error() != "other" {
+	if err := wrapCloudIdentityError(other, "user@company.com"); err == nil || err.Error() != "other" {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

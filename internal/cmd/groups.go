@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/api/cloudidentity/v1"
 
+	"github.com/steipete/gogcli/internal/errfmt"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -41,7 +42,7 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	svc, err := newCloudIdentityService(ctx, account)
 	if err != nil {
-		return wrapCloudIdentityError(err)
+		return wrapCloudIdentityError(err, account)
 	}
 
 	// Search for all groups the user belongs to
@@ -53,7 +54,7 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Context(ctx).
 		Do()
 	if err != nil {
-		return wrapCloudIdentityError(err)
+		return wrapCloudIdentityError(err, account)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -102,15 +103,18 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 // wrapCloudIdentityError provides helpful error messages for common Cloud Identity API issues.
-func wrapCloudIdentityError(err error) error {
+func wrapCloudIdentityError(err error, account string) error {
 	errStr := err.Error()
 	if strings.Contains(errStr, "accessNotConfigured") ||
 		strings.Contains(errStr, "Cloud Identity API has not been used") {
-		return fmt.Errorf("cloud Identity API is not enabled; enable it at: https://console.developers.google.com/apis/api/cloudidentity.googleapis.com/overview (%w)", err)
+		return errfmt.NewUserFacingError("Cloud Identity API is not enabled; enable it at: https://console.developers.google.com/apis/api/cloudidentity.googleapis.com/overview", err)
 	}
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") {
-		return fmt.Errorf("insufficient permissions for Cloud Identity API; re-authenticate with the cloud-identity.groups.readonly scope: gog auth add <account> --services groups\n\nOriginal error: %w", err)
+		return errfmt.NewUserFacingError("Insufficient permissions for Cloud Identity API; re-authenticate with the cloud-identity.groups.readonly scope: gog auth add <account> --services groups", err)
+	}
+	if isConsumerAccount(account) && (strings.Contains(errStr, "invalid argument") || strings.Contains(errStr, "badRequest")) {
+		return errfmt.NewUserFacingError("Cloud Identity groups require a Google Workspace/Cloud Identity account; consumer accounts (gmail.com/googlemail.com) are not supported.", err)
 	}
 	return err
 }
@@ -147,7 +151,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	svc, err := newCloudIdentityService(ctx, account)
 	if err != nil {
-		return wrapCloudIdentityError(err)
+		return wrapCloudIdentityError(err, account)
 	}
 
 	// First, look up the group by email to get its resource name
@@ -209,6 +213,11 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	printNextPageHint(u, resp.NextPageToken)
 	return nil
+}
+
+func isConsumerAccount(account string) bool {
+	account = strings.ToLower(strings.TrimSpace(account))
+	return strings.HasSuffix(account, "@gmail.com") || strings.HasSuffix(account, "@googlemail.com")
 }
 
 // lookupGroupByEmail finds a group by its email address and returns its resource name.

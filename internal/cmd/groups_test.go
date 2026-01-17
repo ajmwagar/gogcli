@@ -9,19 +9,26 @@ import (
 )
 
 func TestWrapCloudIdentityError(t *testing.T) {
-	err := wrapCloudIdentityError(errors.New("accessNotConfigured: boom"))
-	if !strings.Contains(err.Error(), "cloud Identity API is not enabled") {
+	err := wrapCloudIdentityError(errors.New("accessNotConfigured: boom"), "user@company.com")
+	if !strings.Contains(err.Error(), "Cloud Identity API is not enabled") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	err = wrapCloudIdentityError(errors.New("insufficientPermissions: nope"))
-	if !strings.Contains(err.Error(), "insufficient permissions") {
+	err = wrapCloudIdentityError(errors.New("insufficientPermissions: nope"), "user@company.com")
+	if !strings.Contains(err.Error(), "Insufficient permissions") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	other := errors.New("other")
-	if !errors.Is(wrapCloudIdentityError(other), other) {
+	if !errors.Is(wrapCloudIdentityError(other, "user@company.com"), other) {
 		t.Fatalf("expected passthrough error")
+	}
+}
+
+func TestWrapCloudIdentityError_ConsumerAccount(t *testing.T) {
+	err := wrapCloudIdentityError(errors.New("badRequest: Request contains an invalid argument."), "person@gmail.com")
+	if !strings.Contains(err.Error(), "consumer accounts") {
+		t.Fatalf("unexpected consumer error: %v", err)
 	}
 }
 

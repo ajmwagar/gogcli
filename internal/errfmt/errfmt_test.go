@@ -50,6 +50,15 @@ func TestFormat_KeyNotFound(t *testing.T) {
 	}
 }
 
+func TestFormat_UserFacingError(t *testing.T) {
+	err := NewUserFacingError("friendly", errNope)
+	got := Format(err)
+
+	if got != "friendly" {
+		t.Fatalf("unexpected: %q", got)
+	}
+}
+
 func TestFormat_GoogleAPIError(t *testing.T) {
 	err := &ggoogleapi.Error{
 		Code:    403,
