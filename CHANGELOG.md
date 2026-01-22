@@ -19,6 +19,7 @@
 - Docs: update Gmail command examples in README. (#95) — thanks @chrisrodz.
 - Contacts: include birthdays in contact get output. (#102) — thanks @salmonumbrella.
 - Calendar: force custom reminders payload to send UseDefault=false. (#100) — thanks @salmonumbrella.
+- Gmail: add read alias + default thread get. (#103) — thanks @salmonumbrella.
 
 ## 0.7.0 - 2026-01-17
 
